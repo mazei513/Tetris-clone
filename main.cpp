@@ -1,8 +1,3 @@
-//to do
-//one day try to code in srs wall kicks
-//hold piece
-//piece queue
-
 #include <iostream>
 #include <SDL.h>
 #include <SDL_ttf.h>
@@ -12,19 +7,10 @@
 #include <ctime>
 #include <windows.h>
 #include <cstdlib>
+#include "graphics.h"
 
 using std::cout;
 using std::endl;
-
-const int SCREEN_WIDTH = 350;
-const int SCREEN_HEIGHT = 700;
-const int GBOARD_WIDTH = 10;
-const int GBOARD_HEIGHT = 22; //rows 0 and 1 is for new pieces to spawn into
-
-SDL_Window* gWindow = NULL;
-SDL_Renderer* gRenderer = NULL;
-SDL_Texture* gTexture = NULL;
-TTF_Font* gfont = NULL;
 
 enum BLOCK_STATE{
 BEMPTY = 0,
@@ -39,7 +25,8 @@ struct piece_info
     int y;
 };
 
-class cgame{
+class cgame : public Graphics
+{
 private:
     int gboard[GBOARD_HEIGHT+2][GBOARD_WIDTH+4];
     int npboard[GBOARD_HEIGHT+2][GBOARD_WIDTH+4];
@@ -53,7 +40,9 @@ private:
     void line_clear();
     bool start_game = true;
     bool game_over = false;
-    SDL_Rect board_viewport;
+    DWORD current_time = 0, last_time = 0, down_timer = 0, lr_timer = 0, lock_timer = 0;
+    const DWORD down_time = 35, lr_delay_time = 150, difficulty = 1000, lock_delay = 500, lr_speed = 35;
+    bool space_pressed = false, lr_pressed = false, rotate_pressed = false, lock = false, lr_delay = true;
 public:
     cgame();
     ~cgame();
@@ -67,58 +56,17 @@ public:
     void shape_right();
     void shape_up();
     void hard_drop();
-    void print_npboard();
-    void print_gboard();
-    void print_cur_piece_info();
+    void print_npboard();           //debugging function
+    void print_gboard();            //debugging function
+    void print_cur_piece_info();    //debugging function
     bool check_game_over();
-    void init_board();
     void draw_pieces();
-    void draw_ghost();
-    void blank_board();
-    void game_over_screen();
     void restart();
-    DWORD current_time = 0, last_time = 0, down_timer = 0, lr_timer = 0, lock_timer = 0;
-    DWORD down_time = 35, lr_delay_time = 150, difficulty = 1000, lock_delay = 500, lr_speed = 35;
-    bool space_pressed = false, lr_pressed = false, rotate_pressed = false, lock = false, lr_delay = true;
+    void handle_input(bool &quit);
 };
 
 cgame::cgame()
 {
-    if(SDL_Init(SDL_INIT_VIDEO) < 0)
-    {
-        cout << "SDL could not initialize! SDL_Error: " << SDL_GetError() << endl;
-    }
-    else
-    {
-        if(!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
-        {
-            cout << "Warning: Linear Texture filtering not enabled";
-        }
-
-        gWindow = SDL_CreateWindow("Tetris", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-        if(gWindow == NULL)
-        {
-            cout << "Window could not be created! SDL Error: " << SDL_GetError();
-        }
-        else
-        {
-            gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
-            if(gRenderer == NULL)
-            {
-                cout << "Renderer could not be created! SDL Error: " << SDL_GetError();
-            }
-            else
-            {
-                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-                if(TTF_Init() == -1)
-                {
-                    cout << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError();
-                }
-            }
-        }
-    }
-
     clear_board(gboard);
 
     clear_board(npboard);
@@ -128,18 +76,7 @@ cgame::cgame()
 
 cgame::~cgame()
 {
-    SDL_DestroyTexture(gTexture);
-    gTexture = NULL;
 
-    TTF_CloseFont(gfont);
-
-    SDL_DestroyRenderer(gRenderer);
-    SDL_DestroyWindow(gWindow);
-    gWindow = NULL;
-    gRenderer = NULL;
-
-    TTF_Quit();
-    SDL_Quit();
 }
 
 bool cgame::check_game_over()
@@ -707,54 +644,10 @@ void cgame::print_gboard()
     }
 }
 
-void cgame::init_board()
-{
-    SDL_Rect tempRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderFillRect(gRenderer, &tempRect);
-
-    gfont = TTF_OpenFont("basictitlefont.ttf", 20);
-    SDL_Color textColor = {0xFF, 0xFF, 0xFF};
-    SDL_Surface* txtSurface = TTF_RenderText_Solid(gfont, "Hit Enter to restart when game over", textColor);
-    gTexture = SDL_CreateTextureFromSurface(gRenderer, txtSurface);
-    tempRect = {10, 10, SCREEN_WIDTH-20, 30};
-    SDL_RenderCopy(gRenderer, gTexture, NULL, &tempRect);
-
-
-    tempRect = {25, 50, SCREEN_WIDTH - 50, SCREEN_HEIGHT - 100};
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderDrawRect(gRenderer, &tempRect);
-
-    SDL_RenderPresent(gRenderer);
-
-    tempRect.h = SCREEN_HEIGHT-101;
-    tempRect.w = SCREEN_WIDTH-51;
-
-    SDL_RenderSetViewport(gRenderer, &tempRect);
-
-    tempRect.h = ((SCREEN_HEIGHT-100)/20);
-    tempRect.w = ((SCREEN_WIDTH-50)/10);
-
-    for(int i = 2; i < GBOARD_HEIGHT; i++)
-    {
-        for(int j = 2; j < GBOARD_WIDTH+2; j++)
-        {
-            tempRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-            tempRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-            SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-            SDL_RenderDrawRect(gRenderer, &tempRect);
-        }
-    }
-}
-
 void cgame::draw_pieces()
 {
     blank_board();
 
-    SDL_Rect blockRect;
-    blockRect.h = ((SCREEN_HEIGHT-100)/20);
-    blockRect.w = ((SCREEN_WIDTH-50)/10);
     int temp_board[GBOARD_HEIGHT+2][GBOARD_WIDTH+4];
 
     for(int i = 0; i < GBOARD_HEIGHT+2; i++)
@@ -776,12 +669,7 @@ void cgame::draw_pieces()
         {
             if(temp_board[i][j])
             {
-                blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-                blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-                SDL_RenderFillRect(gRenderer, &blockRect);
-                SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0xFF);
-                SDL_RenderDrawRect(gRenderer, &blockRect);
+                draw_solid_block(i, j);
             }
         }
     }
@@ -818,13 +706,7 @@ void cgame::draw_pieces()
         {
             if(npboard[i][j])
             {
-                blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-                blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-                SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0x80);
-                SDL_RenderFillRect(gRenderer, &blockRect);
-                SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-                SDL_RenderDrawRect(gRenderer, &blockRect);
+                draw_ghost_block(i, j);
             }
         }
     }
@@ -832,46 +714,6 @@ void cgame::draw_pieces()
     cur_piece = initial_state;
     clear_board(npboard);
     print_piece2npboard(cur_piece);
-}
-
-void cgame::blank_board()
-{
-    SDL_Rect boardRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-
-    SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderFillRect(gRenderer, &boardRect);
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderDrawRect(gRenderer, &boardRect);
-
-    boardRect.h = ((SCREEN_HEIGHT-100)/20);
-    boardRect.w = ((SCREEN_WIDTH-50)/10);
-
-    for(int i = 2; i < GBOARD_HEIGHT; i++)
-    {
-        for(int j = 2; j < GBOARD_WIDTH+2; j++)
-        {
-            boardRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-            boardRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-            SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-            SDL_RenderDrawRect(gRenderer, &boardRect);
-        }
-    }
-}
-
-void cgame::game_over_screen()
-{
-    SDL_Rect screen_size = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-
-    SDL_RenderSetViewport(gRenderer, &screen_size);
-
-    SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0x00, 0x00, 0x80);
-    SDL_RenderFillRect(gRenderer, &screen_size);
-
-    SDL_RenderPresent(gRenderer);
 }
 
 void cgame::restart()
@@ -883,198 +725,207 @@ void cgame::restart()
 
     new_shape();
 
-    SDL_RenderClear(gRenderer);
-    init_board();
+    init_board_graphics();
 }
 
-int main(int argv, char* argc[])
+void cgame::handle_input(bool &quit)
 {
-    srand(time(NULL));
     SDL_Event e;
     SDL_Keycode keypressed = 0;
     SDL_Keycode last_keypressed = 0;
     const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
 
+    if(check_game_over())
+    {
+        game_over_screen();
+
+        while(!quit)
+        {
+            while( SDL_PollEvent( &e ) != 0 )
+            {
+                if( e.type == SDL_QUIT )
+                {
+                    quit = true;
+                }
+            }
+
+            if(currentKeyStates[SDL_SCANCODE_RETURN])
+            {
+                restart();
+                break;
+            }
+        }
+    }
+
+    current_time = timeGetTime();
+
+    if((current_time - last_time) >= difficulty)
+    {
+        shape_down();
+        //print_cur_piece_info();
+        last_time = current_time;
+        draw_pieces();
+    }
+    while( SDL_PollEvent( &e ) != 0 )
+    {
+        if( e.type == SDL_QUIT )
+        {
+            quit = true;
+        }
+    }
+
+    if(currentKeyStates[SDL_SCANCODE_DOWN])
+    {
+        if((timeGetTime() - down_timer) >= down_time)
+        {
+            shape_down();
+            //print_cur_piece_info();
+            down_timer = timeGetTime();
+            last_time = timeGetTime();
+            draw_pieces();
+        }
+    }
+
+    if(lr_pressed)
+    {
+        if(currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
+        {
+            if(lr_delay)
+            {
+                if((timeGetTime() - lr_timer) >= lr_delay_time)
+                {
+                    shape_right();
+                    //print_cur_piece_info();
+                    lr_timer = timeGetTime();
+                    draw_pieces();
+                    lr_delay = false;
+                }
+            }
+            if(!lr_delay)
+            {
+                if((timeGetTime() - lr_timer) >= (lr_speed))
+                {
+                    shape_right();
+                    //print_cur_piece_info();
+                    lr_timer = timeGetTime();
+                    draw_pieces();
+                    lr_delay = false;
+                }
+            }
+        }
+        if(!currentKeyStates[SDL_SCANCODE_RIGHT] && currentKeyStates[SDL_SCANCODE_LEFT])
+        {
+            if(lr_delay)
+            {
+                if((timeGetTime() - lr_timer) >= lr_delay_time)
+                {
+                    shape_left();
+                    //print_cur_piece_info();
+                    lr_timer = timeGetTime();
+                    draw_pieces();
+                    lr_delay = false;
+                }
+            }
+            if(!lr_delay)
+            {
+                if((timeGetTime() - lr_timer) >= (lr_speed))
+                {
+                    shape_left();
+                    //print_cur_piece_info();
+                    lr_timer = timeGetTime();
+                    draw_pieces();
+                    lr_delay = false;
+                }
+            }
+        }
+    }
+    if(!lr_pressed)
+    {
+        if(currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
+        {
+            shape_right();
+            draw_pieces();
+            lr_timer = timeGetTime();
+            lr_pressed = true;
+        }
+
+        if(currentKeyStates[SDL_SCANCODE_LEFT] && !currentKeyStates[SDL_SCANCODE_RIGHT])
+        {
+            shape_left();
+            //print_cur_piece_info();
+            lr_timer = timeGetTime();
+            draw_pieces();
+            lr_pressed = true;
+        }
+    }
+    if(!currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
+    {
+        lr_pressed = false;
+        lr_delay = true;
+    }
+    if(space_pressed)
+    {
+        if(!currentKeyStates[SDL_SCANCODE_SPACE])
+        {
+            space_pressed = false;
+        }
+    }
+    if(!space_pressed)
+    {
+        if(currentKeyStates[SDL_SCANCODE_SPACE])
+        {
+            space_pressed = true;
+            hard_drop();
+            //print_cur_piece_info();
+            last_time = timeGetTime();
+            draw_pieces();
+        }
+    }
+    if(rotate_pressed)
+    {
+        if(!currentKeyStates[SDL_SCANCODE_Z] && !currentKeyStates[SDL_SCANCODE_X])
+        {
+            rotate_pressed = false;
+        }
+    }
+    if(!rotate_pressed)
+    {
+        if(currentKeyStates[SDL_SCANCODE_Z] && !currentKeyStates[SDL_SCANCODE_X])
+        {
+            rotate_pressed = true;
+            CCW_rotate();
+            //print_cur_piece_info();
+            draw_pieces();
+        }
+        if(currentKeyStates[SDL_SCANCODE_X] && !currentKeyStates[SDL_SCANCODE_Z])
+        {
+            rotate_pressed = true;
+            CW_rotate();
+            //print_cur_piece_info();
+            draw_pieces();
+        }
+    }
+    if(currentKeyStates[SDL_SCANCODE_ESCAPE])
+    {
+        quit = true;
+    }
+}
+
+int main(int argv, char* argc[])
+{
+    srand(time(NULL));
+
     cgame Game;
 
     bool quit = false;
 
-    Game.init_board();
+    Game.init_board_graphics();
 
     while(!quit)
     {
-        if(Game.check_game_over())
-        {
-            Game.game_over_screen();
+        Game.handle_input(quit);
 
-            while(!quit)
-            {
-                while( SDL_PollEvent( &e ) != 0 )
-                {
-                    if( e.type == SDL_QUIT )
-                    {
-                        quit = true;
-                    }
-                }
-
-                if(currentKeyStates[SDL_SCANCODE_RETURN])
-                {
-                    Game.restart();
-                    break;
-                }
-            }
-        }
-
-        Game.current_time = timeGetTime();
-
-        if((Game.current_time - Game.last_time) >= Game.difficulty)
-        {
-            Game.shape_down();
-            //Game.print_cur_piece_info();
-            Game.last_time = Game.current_time;
-            Game.draw_pieces();
-        }
-        while( SDL_PollEvent( &e ) != 0 )
-        {
-            if( e.type == SDL_QUIT )
-            {
-                quit = true;
-            }
-        }
-
-        if(currentKeyStates[SDL_SCANCODE_DOWN])
-        {
-            if((timeGetTime() - Game.down_timer) >= Game.down_time)
-            {
-                Game.shape_down();
-                //Game.print_cur_piece_info();
-                Game.down_timer = timeGetTime();
-                Game.last_time = timeGetTime();
-                Game.draw_pieces();
-            }
-        }
-
-        if(Game.lr_pressed)
-        {
-            if(currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
-            {
-                if(Game.lr_delay)
-                {
-                    if((timeGetTime() - Game.lr_timer) >= Game.lr_delay_time)
-                    {
-                        Game.shape_right();
-                        //Game.print_cur_piece_info();
-                        Game.lr_timer = timeGetTime();
-                        Game.draw_pieces();
-                        Game.lr_delay = false;
-                    }
-                }
-                if(!Game.lr_delay)
-                {
-                    if((timeGetTime() - Game.lr_timer) >= (Game.lr_speed))
-                    {
-                        Game.shape_right();
-                        //Game.print_cur_piece_info();
-                        Game.lr_timer = timeGetTime();
-                        Game.draw_pieces();
-                        Game.lr_delay = false;
-                    }
-                }
-            }
-            if(!currentKeyStates[SDL_SCANCODE_RIGHT] && currentKeyStates[SDL_SCANCODE_LEFT])
-            {
-                if(Game.lr_delay)
-                {
-                    if((timeGetTime() - Game.lr_timer) >= Game.lr_delay_time)
-                    {
-                        Game.shape_left();
-                        //Game.print_cur_piece_info();
-                        Game.lr_timer = timeGetTime();
-                        Game.draw_pieces();
-                        Game.lr_delay = false;
-                    }
-                }
-                if(!Game.lr_delay)
-                {
-                    if((timeGetTime() - Game.lr_timer) >= (Game.lr_speed))
-                    {
-                        Game.shape_left();
-                        //Game.print_cur_piece_info();
-                        Game.lr_timer = timeGetTime();
-                        Game.draw_pieces();
-                        Game.lr_delay = false;
-                    }
-                }
-            }
-        }
-        if(!Game.lr_pressed)
-        {
-            if(currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
-            {
-                Game.shape_right();
-                Game.draw_pieces();
-                Game.lr_timer = timeGetTime();
-                Game.lr_pressed = true;
-            }
-
-            if(currentKeyStates[SDL_SCANCODE_LEFT] && !currentKeyStates[SDL_SCANCODE_RIGHT])
-            {
-                Game.shape_left();
-                //Game.print_cur_piece_info();
-                Game.lr_timer = timeGetTime();
-                Game.draw_pieces();
-                Game.lr_pressed = true;
-            }
-        }
-        if(!currentKeyStates[SDL_SCANCODE_RIGHT] && !currentKeyStates[SDL_SCANCODE_LEFT])
-        {
-            Game.lr_pressed = false;
-            Game.lr_delay = true;
-        }
-        if(Game.space_pressed)
-        {
-            if(!currentKeyStates[SDL_SCANCODE_SPACE])
-            {
-                Game.space_pressed = false;
-            }
-        }
-        if(!Game.space_pressed)
-        {
-            if(currentKeyStates[SDL_SCANCODE_SPACE])
-            {
-                Game.space_pressed = true;
-                Game.hard_drop();
-                //Game.print_cur_piece_info();
-                Game.last_time = timeGetTime();
-                Game.draw_pieces();
-            }
-        }
-        if(Game.rotate_pressed)
-        {
-            if(!currentKeyStates[SDL_SCANCODE_Z] && !currentKeyStates[SDL_SCANCODE_X])
-            {
-                Game.rotate_pressed = false;
-            }
-        }
-        if(!Game.rotate_pressed)
-        {
-            if(currentKeyStates[SDL_SCANCODE_Z] && !currentKeyStates[SDL_SCANCODE_X])
-            {
-                Game.rotate_pressed = true;
-                Game.CCW_rotate();
-                //Game.print_cur_piece_info();
-                Game.draw_pieces();
-            }
-            if(currentKeyStates[SDL_SCANCODE_X] && !currentKeyStates[SDL_SCANCODE_Z])
-            {
-                Game.rotate_pressed = true;
-                Game.CW_rotate();
-                //Game.print_cur_piece_info();
-                Game.draw_pieces();
-            }
-        }
-
-        SDL_RenderPresent(gRenderer);
+        Game.render_screen();
     }
 
     return 0;
