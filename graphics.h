@@ -1,35 +1,46 @@
-#ifndef GRAPHICS_H
-#define GRAPHICS_H
+#ifndef GRAPHICS_HEADER
+#define GRAPHICS_HEADER
+
+#define WHITERGB 0xFF
+#define BLACKRGB 0x00
+#define FULLALPHA 0xFF
 
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include <SDL_image.h>
+#include <string>
 #include <iostream>
 
-const int BOARD_HEIGHT_OFFSET = 50, BOARD_WIDTH_OFFSET = 25, BOARD_HEIGHT_OFFSET_SIZE = 100, BOARD_WIDTH_OFFSET_SIZE = 50;
-const int SCREEN_WIDTH = 350;
-const int SCREEN_HEIGHT = 700;
-const int GBOARD_WIDTH = 10;
-const int GBOARD_HEIGHT = 22; //rows 0 and 1 is for new pieces to spawn into
-
-class Graphics{
-private:
-    SDL_Window* gWindow = NULL;
-    SDL_Renderer* gRenderer = NULL;
-    SDL_Texture* gTexture = NULL;
-    TTF_Font* gfont = NULL;
-    SDL_Rect blockRect = {0, 0, ((SCREEN_WIDTH-BOARD_WIDTH_OFFSET_SIZE)/10), ((SCREEN_HEIGHT-BOARD_HEIGHT_OFFSET_SIZE)/20)};
-    SDL_Rect boardRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    SDL_Rect screen_size = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    SDL_Rect boardSize = {BOARD_WIDTH_OFFSET, BOARD_HEIGHT_OFFSET, SCREEN_WIDTH - BOARD_WIDTH_OFFSET_SIZE, SCREEN_HEIGHT - BOARD_HEIGHT_OFFSET_SIZE};
+class LTexture
+{
 public:
-    Graphics();
-    ~Graphics();
-    void init_board_graphics();
-    void draw_solid_block(int i, int j);
-    void draw_ghost_block(int i, int j);
-    void blank_board();
-    void game_over_screen();
-    void render_screen();
+    LTexture();
+    ~LTexture();
+    void freeTex();
+protected:
+    SDL_Texture* gTexture;
+    int texWidth;
+    int texHeight;
 };
 
-#endif
+class SDLGraphics : public LTexture
+{
+public:
+    SDLGraphics(int windowWidth, int windowHeight, std::string windowTitle);
+    ~SDLGraphics();
+    void blankScreen(int bgRGB);
+    void blankScreen(int bgR, int bgG, int bgB);
+    void RectFill(SDL_Rect dstRect, int RGB, int alpha = FULLALPHA);
+    void RectFill(SDL_Rect dstRect, int R, int G, int B, int alpha = FULLALPHA);
+    void RectDraw(SDL_Rect dstRect, int RGB, int alpha = FULLALPHA);
+    void RectDraw(SDL_Rect dstRect, int R, int G, int B, int alpha = FULLALPHA);
+    void loadTex(std::string path);
+    void copyTex(int x, int y);
+    void render();
+protected:
+    SDL_Rect screenRect;
+    SDL_Renderer* gRenderer;
+    SDL_Window* gWindow;
+};
+
+#endif // GRAPHICS_HEADER

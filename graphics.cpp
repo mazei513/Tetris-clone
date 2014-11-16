@@ -3,8 +3,34 @@
 using std::cout;
 using std::endl;
 
-Graphics::Graphics()
+LTexture::LTexture()
 {
+    gTexture = NULL;
+    texHeight = 0;
+    texWidth = 0;
+}
+
+LTexture::~LTexture()
+{
+    freeTex();
+}
+
+void LTexture::freeTex()
+{
+    if(gTexture != NULL)
+    {
+        SDL_DestroyTexture(gTexture);
+        gTexture = NULL;
+        texHeight = 0;
+        texWidth = 0;
+    }
+}
+
+SDLGraphics::SDLGraphics(int windowWidth, int windowHeight, std::string windowTitle)
+{
+    gRenderer = NULL;
+    gWindow = NULL;
+
     if(SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         cout << "SDL could not initialize! SDL_Error: " << SDL_GetError() << endl;
@@ -16,13 +42,15 @@ Graphics::Graphics()
             cout << "Warning: Linear Texture filtering not enabled";
         }
 
-        gWindow = SDL_CreateWindow("Tetris", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+        gWindow = SDL_CreateWindow(windowTitle.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_SHOWN);
         if(gWindow == NULL)
         {
             cout << "Window could not be created! SDL Error: " << SDL_GetError();
         }
         else
         {
+            screenRect = {0, 0, windowWidth, windowHeight};
+
             gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
             if(gRenderer == NULL)
             {
@@ -36,124 +64,93 @@ Graphics::Graphics()
                 {
                     cout << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError();
                 }
+
+                int IMGFlags = IMG_INIT_PNG|IMG_INIT_JPG|IMG_INIT_TIF;
+
+                if(!(IMG_Init(IMGFlags) & IMGFlags))
+                {
+                    cout << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError();
+                }
             }
         }
     }
 }
 
-Graphics::~Graphics()
+SDLGraphics::~SDLGraphics()
 {
-    SDL_DestroyTexture(gTexture);
-    gTexture = NULL;
-
-    TTF_CloseFont(gfont);
-
     SDL_DestroyRenderer(gRenderer);
-    SDL_DestroyWindow(gWindow);
-    gWindow = NULL;
     gRenderer = NULL;
 
+    SDL_DestroyWindow(gWindow);
+    gWindow = NULL;
+
     TTF_Quit();
+    IMG_Quit();
     SDL_Quit();
 }
 
-void Graphics::init_board_graphics()
+void SDLGraphics::blankScreen(int bgRGB)
 {
-    SDL_RenderClear(gRenderer);
+    blankScreen(bgRGB, bgRGB, bgRGB);
+}
 
-    //Fill screen with black
-    SDL_Rect tempRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderFillRect(gRenderer, &tempRect);
+void SDLGraphics::blankScreen(int bgR, int bgG, int bgB)
+{
+    SDL_SetRenderDrawColor(gRenderer, bgR, bgG, bgB, FULLALPHA);
+    SDL_RenderFillRect(gRenderer, &screenRect);
+}
 
-    //Draw Text
-    gfont = TTF_OpenFont("basictitlefont.ttf", 20);
-    SDL_Color textColor = {0xFF, 0xFF, 0xFF};
-    SDL_Surface* txtSurface = TTF_RenderText_Solid(gfont, "Hit Enter to restart when game over", textColor);
-    gTexture = SDL_CreateTextureFromSurface(gRenderer, txtSurface);
-    tempRect = {10, 10, SCREEN_WIDTH-20, 30};
-    SDL_RenderCopy(gRenderer, gTexture, NULL, &tempRect);
+void SDLGraphics::loadTex(std::string path)
+{
+    freeTex();
 
-    //Draw board box
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderDrawRect(gRenderer, &boardSize);
+    SDL_Surface* loadedSurface = IMG_Load(path.c_str());
 
-    SDL_RenderPresent(gRenderer);
-
-    tempRect = {boardSize.x+1, boardSize.y+1, boardSize.w-2, boardSize.h-2};
-
-    SDL_RenderSetViewport(gRenderer, &tempRect);
-
-    //Draw Grid
-    for(int i = 2; i < GBOARD_HEIGHT; i++)
+    if(loadedSurface = NULL)
     {
-        for(int j = 2; j < GBOARD_WIDTH+2; j++)
-        {
-            blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-            blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-            SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-            SDL_RenderDrawRect(gRenderer, &blockRect);
-        }
+        cout << "Failed to load " << path << ". SDL_image Error " << IMG_GetError() << endl;
+    }
+    else
+    {
+        texHeight = loadedSurface->h;
+        texWidth = loadedSurface->w;
+
+        gTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface);
+
+        SDL_FreeSurface(loadedSurface);
     }
 }
 
-void Graphics::draw_solid_block(int i, int j)
+void SDLGraphics::RectFill(SDL_Rect dstRect, int RGB, int alpha)
 {
-    blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-    blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderFillRect(gRenderer, &blockRect);
-    SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0xFF);
-    SDL_RenderDrawRect(gRenderer, &blockRect);
+    RectFill(dstRect, RGB, RGB, RGB, alpha);
 }
 
-void Graphics::draw_ghost_block(int i, int j)
+void SDLGraphics::RectFill(SDL_Rect dstRect, int R, int G, int B, int alpha)
 {
-    blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-    blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-    SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0x80);
-    SDL_RenderFillRect(gRenderer, &blockRect);
-    SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-    SDL_RenderDrawRect(gRenderer, &blockRect);
+    SDL_SetRenderDrawColor(gRenderer, R, G, B, alpha);
+    SDL_RenderFillRect(gRenderer, &dstRect);
 }
 
-void Graphics::blank_board()
+void SDLGraphics::RectDraw(SDL_Rect dstRect, int RGB, int alpha)
 {
-    //Blank Screen
-    SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderFillRect(gRenderer, &boardRect);
-
-    //Redraw box
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderDrawRect(gRenderer, &boardRect);
-
-    //Redraw Grid
-    for(int i = 2; i < GBOARD_HEIGHT; i++)
-    {
-        for(int j = 2; j < GBOARD_WIDTH+2; j++)
-        {
-            blockRect.x = (j-2)*((SCREEN_WIDTH-50)/10);
-            blockRect.y = (i-2)*((SCREEN_HEIGHT-100)/20);
-            SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(gRenderer, 0x80, 0x80, 0x80, 0x80);
-            SDL_RenderDrawRect(gRenderer, &blockRect);
-        }
-    }
+    RectDraw(dstRect, RGB, RGB, RGB, alpha);
 }
 
-void Graphics::render_screen()
+void SDLGraphics::RectDraw(SDL_Rect dstRect, int R, int G, int B, int alpha)
 {
-    SDL_RenderPresent(gRenderer);
+    SDL_SetRenderDrawColor(gRenderer, R, G, B, alpha);
+    SDL_RenderDrawRect(gRenderer, &dstRect);
 }
 
-void Graphics::game_over_screen()
+void SDLGraphics::copyTex(int x, int y)
 {
-    SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
+    SDL_Rect rendRect = {x, y, texWidth, texHeight};
 
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0x00, 0x00, 0x80);
-    SDL_RenderFillRect(gRenderer, &boardRect);
+    SDL_RenderCopy(gRenderer, gTexture, NULL, &rendRect);
+}
 
+void SDLGraphics::render()
+{
     SDL_RenderPresent(gRenderer);
 }
