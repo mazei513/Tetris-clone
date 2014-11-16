@@ -1,13 +1,11 @@
 Tetris-clone
 ============
 
-
 Simple tetris clone made in C++ with the SDL Library
 
 ============
 
-
-When compiling remember to link SDL2 and SDL_ttf.
+Makefile is included for ease of compiling
 
 ============
 
@@ -22,3 +20,7 @@ Hard drop - Spacebar
 CW rotate - X
 
 CCW rotate - Z
+
+Exit game - Escape
+
+Restarting game after game over - Enter
