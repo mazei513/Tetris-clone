@@ -2,9 +2,11 @@ Tetris-clone
 ============
 
 Simple tetris clone made in C++ with the SDL Library
+
 ============
 
 Makefile is included for ease of compiling
+
 ============
 
 By default, the controls are as follows:
